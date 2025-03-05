@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Sensor</title>
+
+    <!-- Подключаем Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* Фиксированные размеры для графика */
+        #chart-container {
+            width: 1200px;
+            /* Задайте желаемую ширину */
+            height: 600px;
+            /* Задайте желаемую высоту */
+            margin: 20px;
+        }
+
+        #chart {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Контейнер для графика и таблицы */
+        .chart-table-container {
+            display: flex;
+            align-items: flex-start;
+            /* Выравнивание по верхнему краю */
+        }
+
+        /* Стили для таблицы */
+        #light-status-table {
+            margin-left: 20px;
+            /* Отступ между графиком и таблицей */
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Система управления освещением</h1>
+
+    <!-- Кнопки управления -->
+    <button id="startButton" onclick='startTask()'>Запустить работу системы</button>&nbsp;&nbsp;
+    <button id="stopButton" onclick='stopTask()'>Остановить работу системы</button><br><br>
+
+    <!-- Уведомление -->
+    <div id="notification" style="display: none;">Неисправность устранена!</div>
+
+    <!-- Контейнер для графика и таблицы -->
+    <div class="chart-table-container">
+        <!-- График изменения current_value -->
+        <div id="chart-container">
+            <canvas id="chart"></canvas>
+        </div>
+
+        <!-- Таблица со статусом освещения -->
+        <table id='light-status-table' border='1'>
+            <thead>
+                <tr>
+                    <th>Значение</th>
+                    <th>Время</th>
+                    <th>Статус</th>
+                </tr>
+            </thead>
+            <tbody id='light-status-body'></tbody>
+        </table>
+    </div>
+
+    <script type='text/javascript'>
+        // Массивы данных для графика
+        let values = [];
+        let labels = [];
+
+        // Массив данных для таблицы
+        let lightStatusData = [];
+
+        // Флаг для управления обновлением данных
+        let isUpdating = false;
+
+        // Функция запуска задачи
+        async function startTask() {
+            // Активируем кнопки
+            document.getElementById("startButton").disabled = true;
+            document.getElementById("stopButton").disabled = false;
+
+            fetch('/start-task')
+                .then(response => response.json())
+                .then(data => console.log(data))
+                .catch(error => console.error('Ошибка:', error));
+
+            // Включаем обновление данных после запуска задачи.
+            isUpdating = true;
+        }
+
+        // Функция остановки задачи
+        async function stopTask() {
+            // Деактивируем кнопки
+            document.getElementById("startButton").disabled = true;
+            document.getElementById("stopButton").disabled = true;
+
+            fetch('/stop-task')
+                .then(response => response.json())
+                .then(data => console.log(data))
+                .then(() => {
+                    updateLightStatusTable(null, null);
+                })
+                .catch(error => console.error('Ошибка:', error))
+                .finally(() => {
+                    // Задержка и уведомление
+                    setTimeout(() => {
+                        // Показываем уведомление
+                        document.getElementById("notification").style.display = "block";
+
+                        // Активируем кнопки снова
+                        document.getElementById("startButton").disabled = false;
+                        document.getElementById("stopButton").disabled = true;
+
+                        // Скрываем уведомление через 3 секунды
+                        setTimeout(() => {
+                            document.getElementById("notification").style.display = "none";
+                        }, 3000);
+                    }, 2000); // Задержка в 2 секунды
+                });
+
+            // Выключаем обновление данных при остановке.
+            isUpdating = false;
+        }
+
+        // Обновление данных на графике и в таблице каждую секунду
+        async function fetchValue() {
+            if (!isUpdating) return; // Если не нужно обновлять, выходим из функции
+
+            try {
+                const response = await fetch('/values');
+                const data = await response.json();
+
+                if (data.values.length === 0) return; // Если нет значений, не обновляем
+
+                const currentValue = data.values[data.values.length - 1];
+
+                if (currentValue === undefined || currentValue === null) return;
+
+                const currentTime = new Date().toLocaleTimeString();
+
+                values.push(currentValue);
+                labels.push(currentTime);
+
+                drawChart();
+
+                updateLightStatusTable(currentValue, currentTime);
+            } catch (error) {
+                console.error("Ошибка при получении значения:", error);
+            }
+        }
+
+        setInterval(fetchValue, 1000);
+
+        let myChart = null;
+
+        // Функция для отрисовки графика
+        function drawChart() {
+            const ctx = document.getElementById("chart").getContext("2d");
+
+            // фиксированные размеры
+            ctx.canvas.width = 1200;
+            ctx.canvas.height = 600;
+
+            if (!myChart) {
+                // Создаем график только один раз
+                myChart = new Chart(ctx, {
+                    type: "line",
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: "Значение датчика",
+                            backgroundColor: "rgba(255,99,132)",
+                            borderColor: "rgba(255,99,132)",
+                            pointBackgroundColor: 'white',
+                            pointBorderWidth: 2,
+                            pointRadius: 4,
+                            fill: false,
+                            tension: 0.5,
+                            borderWidth: 3,
+                            data: values
+                        }]
+                    },
+                    options: {
+                        responsive: false, // Отключаем адаптивность
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            } else {
+                // Обновляем только данные
+                myChart.data.labels = labels;
+                myChart.data.datasets[0].data = values;
+                myChart.update(); // Обновляем график
+            }
+        }
+
+
+        // Функция для обновления таблицы
+        async function updateLightStatusTable(currentValue, currentTime) {
+            const response = await fetch('/light-status');
+            const data = await response.json();
+
+            // Проверяем, есть ли новый статус (например, сообщение о поломке)
+            if (data.light_status && data.light_status.length > 0) {
+                let lastStatus = data.light_status[data.light_status.length - 1];
+
+                if (currentValue !== null && currentTime !== null) {
+                    // Добавляем данные в массив
+                    lightStatusData.push({
+                        value: currentValue,
+                        time: currentTime,
+                        status: lastStatus
+                    });
+                } else {
+                    // Если currentValue и currentTime равны null, добавляем только статус
+                    lightStatusData.push({
+                        value: "No signal",
+                        time: new Date().toLocaleTimeString(),
+                        status: lastStatus
+                    });
+                }
+
+                // Ограничиваем количество строк до 5
+                if (lightStatusData.length > 5) {
+                    lightStatusData.shift(); // Удаляем первую запись
+                }
+
+                // Обновляем HTML таблицы
+                const tableBody = document.getElementById('light-status-body');
+                tableBody.innerHTML = ""; // Очищаем таблицу
+
+                for (let i = 0; i < lightStatusData.length; i++) {
+                    const row = lightStatusData[i];
+                    const newRow = `
+                <tr>
+                    <td>${row.value}</td>
+                    <td>${row.time}</td>
+                    <td>${row.status}</td>
+                </tr>
+            `;
+                    tableBody.innerHTML += newRow;
+                }
+            }
+        }
+
+
+        // Инициализируем график с пустыми данными
+        drawChart();
+    </script>
+</body>
+
+</html>
