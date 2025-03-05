@@ -13,9 +13,7 @@
         /* Фиксированные размеры для графика */
         #chart-container {
             width: 1200px;
-            /* Задайте желаемую ширину */
             height: 600px;
-            /* Задайте желаемую высоту */
             margin: 20px;
         }
 
@@ -28,13 +26,21 @@
         .chart-table-container {
             display: flex;
             align-items: flex-start;
-            /* Выравнивание по верхнему краю */
         }
 
         /* Стили для таблицы */
         #light-status-table {
             margin-left: 20px;
-            /* Отступ между графиком и таблицей */
+        }
+
+        /* Стиль для отображения времени */
+        #current-time {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
         }
     </style>
 </head>
@@ -48,6 +54,9 @@
 
     <!-- Уведомление -->
     <div id="notification" style="display: none;">Неисправность устранена!</div>
+
+    <!-- Текущее время -->
+    <div id="current-time"></div>
 
     <!-- Контейнер для графика и таблицы -->
     <div class="chart-table-container">
@@ -204,7 +213,6 @@
             }
         }
 
-
         // Функция для обновления таблицы
         async function updateLightStatusTable(currentValue, currentTime) {
             const response = await fetch('/light-status');
@@ -242,20 +250,30 @@
                 for (let i = 0; i < lightStatusData.length; i++) {
                     const row = lightStatusData[i];
                     const newRow = `
-                <tr>
-                    <td>${row.value}</td>
-                    <td>${row.time}</td>
-                    <td>${row.status}</td>
-                </tr>
-            `;
+                        <tr>
+                            <td>${row.value}</td>
+                            <td>${row.time}</td>
+                            <td>${row.status}</td>
+                        </tr>
+                    `;
                     tableBody.innerHTML += newRow;
                 }
             }
         }
 
+        // Функция для обновления текущего времени
+        function updateCurrentTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            document.getElementById("current-time").textContent = timeString;
+        }
 
-        // Инициализируем график с пустыми данными
+        // Обновляем время каждую секунду
+        setInterval(updateCurrentTime, 1000);
+
+        // Инициализация
         drawChart();
+        updateCurrentTime();
     </script>
 </body>
 
