@@ -9,33 +9,57 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 
+import random
+import asyncio
+
 class MovieSensor:
     def __init__(self):
-        self.current_value = None  # Текущее значение
+        self.current_value = 100  # Начальное значение
         self.values_list = []  # Список для хранения значений
         self.light_status = []
 
         self.is_running = False
+        self.is_increasing = False  # Флаг для отслеживания направления изменения значения
 
     async def add_answer(self):
         self.is_running = True
+        self.is_increasing = False  # Сначала уменьшение значения
         while True:
             if not self.is_running:
                 break
-            answer = random.randint(0, 1)
-            if answer == 0:
-                self.light_status.append("Освещение выключено")
-            else:
+            
+            # Добавляем текущее значение в список значений
+            self.add_value(self.current_value)
+
+            # Проверяем текущее значение и обновляем статус освещения
+            if self.current_value < 50:
                 self.light_status.append("Освещение включено")
-            self.add_value(answer)
+            else:
+                self.light_status.append("Освещение выключено")
+
+            # Изменяем значение в зависимости от флага
+            if self.is_increasing:
+                # Увеличиваем значение на 10, если оно меньше 100
+                if self.current_value < 90:
+                    self.current_value += random.randint(5, 10)
+                else:
+                    # Если значение достигло 100, начинаем уменьшать его
+                    self.is_increasing = False
+            else:
+                # Уменьшаем значение на 10, если оно больше 0
+                if self.current_value > 15:
+                    self.current_value -= random.randint(5, 10)
+                else:
+                    # Если значение достигло 0, начинаем увеличивать его
+                    self.is_increasing = True
+
             await asyncio.sleep(1)  # Асинхронная пауза
 
     def add_value(self, value):
-        self.current_value = value  # Обновляем текущее значение
-        self.values_list.append(value)
+        self.values_list.append(value)  # Обновляем список значений
 
     def stop_answer(self):
-        breakdown = random.randint(1,3)
+        breakdown = random.randint(1, 3)
         match breakdown:
             case 1:
                 self.values_list.append("No signal")
